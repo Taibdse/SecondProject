@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta http-equiv="X-UA-Compatible" content="ie=edge">
+
+  <title>Guard Map</title>
+</head>
+
+<body>
+  
+ <div class="container-fluid">
+    <div id="mapid" style="position: absolute; top: 0; left: 0; width:100%; height: 100%; float:left"></div>
+ </div>
+
+  <!-- Google Map API -->
+  <script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyA2JtN93nl-xarvyDCUu5QOVtFNMJk0S-A"></script>
+
+  <script>
+
+    let URL_OBJECT, sCheckingCode, iGuardID;
+    const APP_DOMAIN = 'http://115.79.27.219/tracking/';
+
+    URL_OBJECT = getUrlVars();
+    if(URL_OBJECT){
+      sCheckingCode = URL_OBJECT['sCheckingCode'];
+      iGuardID = URL_OBJECT['iGuardID'];
+      buildMap(iGuardID, sCheckingCode);
+    }
+
+    function createMarkerGoogleMap(pos, urlIcon){
+      let icon = createIconGoogleMap(urlIcon);
+      let marker = new google.maps.Marker({
+        position: pos,
+        // animation: google.maps.Animation.BOUNCE,
+        icon: icon
+      });
+      return marker;
+    }
+
+    function createInfoWindowGoogleMap(content){
+      let infoWindow = new google.maps.InfoWindow({
+          content:content
+        });
+        return infoWindow
+    }
+
+    function createIconGoogleMap(url, scaledSize = 17){
+      let icon = {
+        url: url, // url
+        scaledSize: new google.maps.Size(scaledSize, scaledSize), // scaled size
+        origin: new google.maps.Point(0, 0), // origin
+        anchor: new google.maps.Point(0, 0) // anchor
+      };
+      return icon;
+    }
+
+    function createPolylineGoogleMap(path){
+      let polyline = new google.maps.Polyline({
+        path: path,
+        strokeColor: "red",
+        strokeOpacity: 0.8,
+        strokeWeight: 4
+      });
+      return polyline;
+    }
+
+    function createPolygonGooglemap(path, strokeColor = "green", strokeOpacity = 0.8, strokeWeight = 2, fillColor = "green", fillOpacity = 0.4){
+      let polygon = new google.maps.Polygon({
+        path: path,
+        strokeColor: strokeColor,
+        strokeOpacity: strokeOpacity,
+        strokeWeight: strokeWeight,
+        fillColor: fillColor,
+        fillOpacity: fillOpacity
+      });
+      return polygon;
+    }
+
+    function createMapPropGoogleMap(zoom, lat, lng){
+      let mapProp = {
+        center: new google.maps.LatLng(lat, lng),
+        zoom: zoom,
+      };
+      return mapProp;
+    }
+
+    function getUrlVars() {
+      var vars = {};
+      var parts = window.location.href.replace(/[?&]+([^=&]+)=([^&]*)/gi, function(m, key, value) {
+          vars[key] = value;
+      });
+      return vars;
+  }
+
+    async function getGuardGPSCurrent(sentData) {
+      let id = sentData.iGuardID;
+      let url = `${APP_DOMAIN}api/GetGuardGPSCurrent.php?iGuardID=${id}`;
+      let data = await fetch(url);
+      let jsonData = await data.json();
+      if(!Array.isArray(jsonData)) return null;
+      if(jsonData.length == 0) return null;
+      return jsonData;
+    }
+
+    async function getPointChecking(sentData) {
+      let code = sentData.sCheckingCode;
+      let url = `${APP_DOMAIN}api/GetPointChecking.php?sCheckingCode=${code}`;
+      let data = await fetch(url);
+      let jsonData = await data.json();
+      if(!Array.isArray(jsonData)) return null;
+      if(jsonData.length == 0) return null;
+      return jsonData;
+    }
+  
+    async function buildMap(iGuardID, sCheckingCode){
+      let sentGuardData = { iGuardID };
+      let guardGPSCurrent = await getGuardGPSCurrent(sentGuardData);
+      console.log(guardGPSCurrent);
+      const { dGuardLatCurrent, dGuardLongCurrent, sMessage, bOnline } = guardGPSCurrent[0];
+      let latGuard = Number(dGuardLatCurrent);
+      let lngGuard = Number(dGuardLongCurrent);
+      let mapProp = createMapPropGoogleMap(18, latGuard, lngGuard)
+      let mapArea = document.getElementById('mapid');
+      let mymap = new google.maps.Map(mapArea, mapProp);
+      
+      let urlGuard = '../img/Guard.png';
+      let mainPos = new google.maps.LatLng(latGuard, lngGuard);
+      let guardMarker = createMarkerGoogleMap(mainPos, urlGuard);
+  
+      guardMarker.setMap(mymap);
+      let infoWindowGuard = createInfoWindowGoogleMap(sMessage);
+      infoWindowGuard.open(mymap, guardMarker);
+      const pointChekingSentData = { iGuardID, sCheckingCode };
+      let checkingPointData = await getPointChecking(pointChekingSentData);
+      if(checkingPointData){
+        checkingPointData.forEach(checkedPoint => {
+          let { Lat, Long, Status, Message, ImageUrl } = checkedPoint;
+          let url = '';
+          switch(Status){
+            case 1: 
+              url = '../img/Checked.png'; 
+              break;
+            case 2: 
+              url = '../img/None.png'; 
+              break;
+            case 3: 
+              url = '../img/Waiting.png'; 
+              break;
+            case 4: 
+              url = '../img/error.png'; 
+              break;
+          }
+          let pos = new google.maps.LatLng(Lat, Long);
+          let marker = createMarkerGoogleMap(pos, url);
+          marker.setMap(mymap);
+          let mes = Message;
+          if(Status == 4){
+            mes = `${Message}<br><img src="${APP_DOMAIN}${ImageUrl}" class="img-fluid">`
+            let infoWindow = createInfoWindowGoogleMap(mes);
+            google.maps.event.addListener(marker, 'click', function() {
+              infoWindow.open(mymap, marker);
+            });
+          }else{
+            let infoWindow = createInfoWindowGoogleMap(mes);
+            infoWindow.open(mymap, marker);
+          }
+        })
+      }
+    }
+  
+  </script>
+</body>
+
+</html>
