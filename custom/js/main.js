@@ -212,3 +212,10 @@ function getPageSize(l){
   if(l < 400) return 40;
   else return 50;
 }
+
+function checkTimeStartVsTimeEnd(from, to){
+  let fromDate = new Date(from).getTime();
+  let toDate = new Date(to).getTime();
+  if (fromDate >= toDate) return false;
+  return true;
+}
